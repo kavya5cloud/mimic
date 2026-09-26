@@ -48,6 +48,15 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: 'unauthorized' },
+      { status: 401 },
+    );
+  }
+
   const contentLength = Number(
     request.headers.get('content-length') ?? 0,
   );
@@ -67,15 +76,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'invalid_request' },
       { status: 400 },
-    );
-  }
-
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: 'unauthorized' },
-      { status: 401 },
     );
   }
 
