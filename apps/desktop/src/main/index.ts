@@ -125,7 +125,7 @@ if (process.platform === 'darwin' && !app.isPackaged) {
   const protocolRegistered = app.setAsDefaultProtocolClient(
     PROTOCOL,
     process.execPath,
-    [path.resolve(process.argv[1])],
+    [path.resolve(process.argv[1] ?? '.')],
   );
   console.log('[Mimic auth] protocol registration:', protocolRegistered);
 } else {
