@@ -1,50 +1,170 @@
-# Mimic — Phase 2 Voice + Overlay Foundation
+# Mimic
 
-Phase 1 contains the shared TypeScript monorepo, brand tokens/assets, Supabase auth/schema foundation, and the metered/rate-limited API boundary.
+**Mimic the expert.** An AI layer on your desktop that sees your screen, listens to your voice, flies its own cursor to exactly where you need to act, and talks you through it, in any app.
 
-## Workspaces
+> Hold a key. Ask out loud. Mimic shows you, on your own screen.
 
-- `apps/web` — Next.js App Router, auth UI/callback, and Vercel-hosted API Route Handlers.
-- `apps/desktop` — Electron shell with secure deep-link auth and protected overlay window foundation.
-- `packages/core` — shared Zod schemas and protocol types.
-- `packages/ui` — shared design tokens and primitive UI styles.
-- `supabase` — Phase 1–2 database migrations and local seed.
+---
 
-## Run
+## What it does
 
-```bash
-corepack enable
-pnpm install
-cp .env.example .env.local
-pnpm typecheck
-pnpm build
+- **Ask:** "Where's the export button?" Mimic's cursor flies to it and a short spoken answer explains what to do.
+- **Guide:** Follow expert workflows step by step ("Make a pivot table in Excel"). Mimic points at each step and checks that you did it.
+- **Do:** *(coming later)* Mimic performs a single action after you explicitly confirm it.
+
+Mimic works across every app, including native apps with no API, plugin, or web page to hook into.
+
+## Features
+
+- Push-to-talk voice interaction (hold to speak, release to ask)
+- Screen-aware answers from hotkey-triggered screenshots
+- Mimic's own animated cursor, drawn in a click-through overlay (your real mouse is never moved)
+- The **Island**: a Dynamic Island-style status hub at the top of the screen. It blends into the notch on MacBooks and floats as a glass pill on Windows and other displays.
+- Live captions alongside spoken responses
+- Multi-display and mixed-DPI support
+- Cancel anytime: press the hotkey again or hit `Esc`
+- Glass design system with support for reduced motion and reduced transparency
+
+## Platforms
+
+| Platform | Status |
+|---|---|
+| Windows 11 | Supported (first-class) |
+| Windows 10 (2004+) | Supported (glass falls back to non-native blur) |
+| macOS 13+ | Supported, including notch integration |
+
+## How it works
+
+```
+hold hotkey ─▶ capture screenshot + start mic
+release     ─▶ speech-to-text ─▶ AI (screenshot + transcript + short history)
+            ─▶ [POINT] tag streams first ─▶ Mimic cursor flies to target
+            ─▶ spoken answer ─▶ text-to-speech + captions in the Island
+            ─▶ cursor returns to following your mouse
 ```
 
-For local Supabase development, use the Supabase CLI and apply `supabase/migrations`.
+The AI only **proposes** where to point. Deterministic code in the desktop app validates every proposal before anything happens on screen: stale screens, cancelled requests, and out-of-bounds coordinates are all rejected.
 
-## Phase 1 scope
+### Protocol (v1)
 
-Included: monorepo, tokens, SVG logo/icon source, profiles/sessions/usage/skills, Google + magic-link auth scaffolding, Electron `mimic://` deep-link session handoff, API metering/rate limits, and metadata-only latency telemetry.
+```
+[POINT:x,y:label]            point on the cursor's screen
+[POINT:x,y:label:screen2]    point on another screen
+[POINT:none]                 no pointing needed
+[NOTFOUND:thing]             target not visible
+[STEP_DONE] / [STEP_NOT_DONE]  Guide mode verification
+```
 
-Excluded until Phase 5: purchases, payouts, creator revenue ledger, ratings.
+## Architecture
 
-## Privacy invariant
+| Layer | Tech |
+|---|---|
+| Desktop app | Electron (overlays, Island, capture, hotkeys, audio) |
+| Backend / API | Next.js (auth, API proxy, prompts, usage metering, rate limiting) |
+| Database | Neon PostgreSQL |
+| Auth | Better Auth (Google sign-in via system browser) |
+| AI reasoning | Anthropic |
+| Speech | OpenAI (speech-to-text and text-to-speech) |
 
-Never log screenshots, audio, full prompts, or provider responses. Telemetry contains only stage names, durations, request/run identifiers and non-content metadata.
+Provider API keys live only on the server. The desktop app never talks to AI providers directly.
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+
+- A Neon PostgreSQL database
+- Anthropic and OpenAI API keys
+- Google OAuth credentials (for sign-in)
+
+### 1. Install
+
+```bash
+git clone https://github.com/<your-org>/mimic.git
+cd mimic
+npm install
+```
+
+### 2. Configure environment
+
+Create `.env` for the web backend:
+
+```bash
+DATABASE_URL=postgres://...          # Neon pooled connection string
+BETTER_AUTH_SECRET=...               # long random string
+BETTER_AUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...
+```
+
+No provider keys go in the desktop app's environment.
+
+### 3. Run
+
+```bash
+# backend
+npm run dev:web
+
+# desktop app (in another terminal)
+npm run dev:desktop
+```
+
+To run the full loop without real provider keys, start the backend with the mock provider:
+
+```bash
+MIMIC_PROVIDER=mock npm run dev:web
+```
+
+> Script names are examples. Match them to the scripts in `package.json`.
+
+### 4. Grant permissions
+
+- **macOS:** Screen Recording, Microphone, and Input Monitoring (for hold-to-talk). Restart Mimic after granting Screen Recording.
+- **Windows:** Microphone access in Settings → Privacy & security → Microphone.
+
+Permissions are tied to the app's code signature. Use signed builds when testing permissions, or they may reset on every rebuild.
+
+## Usage
+
+1. Hold the hotkey (default configurable in Settings) and ask your question.
+2. Release. The Island shows Mimic thinking, then the cursor flies to the answer while Mimic speaks.
+3. Press the hotkey again or `Esc` to interrupt at any time.
+4. Open the Island to browse Guide workflows, recent answers, and settings.
+
+## Privacy
+
+- Mimic captures your screen **only while you hold the hotkey**. Never in the background.
+- Screenshots and audio are not stored on your device or our servers.
+- We do not log screenshots, audio, transcripts, prompts, or AI responses. Only metadata such as latency and error types is recorded.
+- Mimic's own windows are hidden from screen capture, so they're also hidden from your screen shares and recordings.
+- Text on your screen is treated as content, never as instructions to Mimic.
+
+Screenshots and transcripts are sent to our AI providers (Anthropic, OpenAI) to generate responses, subject to their API data policies.
+
+## Development
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
 
 
-## Supabase redirect URLs
 
-For the desktop client, add `mimic://auth/callback` to the Supabase Auth redirect allow-list. The desktop client initiates PKCE OAuth/magic-link auth, opens the system browser, receives the custom-scheme callback, then exchanges the code in the same persisted Supabase client session.
+## Roadmap
 
-## Vercel
+- [x] Voice → AI → pointing → speech loop (mock provider)
+- [ ] Real provider validation and grounding accuracy eval
+- [ ] The Island (all states, notch + Windows pill)
+- [ ] Glass design system and Mimic cursor
+- [ ] Guide mode with expert workflows
+- [ ] Signed builds, auto-update, crash reporting
+- [ ] Private beta
+- [ ] Do mode (confirmed actions)
+- [ ] Expert workflow recorder and creator marketplace
 
-`apps/web` is the Vercel deploy target. Its Next.js Route Handlers are the API proxy boundary, so web + API deploy as one application. Vercel supports streamed HTTP responses from Next.js Route Handlers. The Phase 1 API includes the authenticated, metered, rate-limited Anthropic streaming proxy. Request bodies and provider responses are never logged; only metadata telemetry is allowed.
+## License
 
-## Phase 2
-
-Phase 2 adds the protected desktop overlay, active-display push-to-talk, screen capture, transcription, streamed POINT/ACTION/DONE/SAY parsing, cursor motion, sentence-level TTS, interruption, type fallback, and stage telemetry.
-
-Set `MIMIC_WEB_URL` for the desktop main window. The local transparent overlay uses the same value as its authenticated API origin and receives the current Supabase access token over the isolated Electron preload bridge.
-
-Native dependency: `uiohook-napi` requires a desktop install/build on macOS or Windows. macOS Accessibility/Input Monitoring permissions and microphone permission are required for the corresponding features.
+Proprietary. All rights reserved.
